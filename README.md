@@ -41,6 +41,7 @@ environment info. The agent is onboarded.
   rules.yaml          Developer-written project rules
   environment.yaml    Services, important files, do-not-touch list
   journal.jsonl       Append-only log of discoveries, decisions, blockers
+  handoffs.jsonl      Async agent-to-agent messages
   config.yaml         Server port, version
 
          +------------------+
@@ -70,6 +71,7 @@ a summary. The next agent picks up where the last one left off.
 | `rules.yaml` | Project rules: frozen decisions, never/always constraints | Commit |
 | `environment.yaml` | Services, important files, protected paths | Commit |
 | `journal.jsonl` | Append-only event log (sessions, discoveries, decisions) | Gitignore |
+| `handoffs.jsonl` | Async agent-to-agent messages | Gitignore |
 | `config.yaml` | ACP server configuration | Commit |
 
 ### rules.yaml
@@ -82,6 +84,11 @@ frozen:
     text: "PostgreSQL 17, no ORM, Kysely only"
     source: ADR-001
     since: 2026-01-15
+    rationale: "Kysely provides type-safe SQL without ORM overhead"
+    owner: "tech-lead"
+    status: active
+    last_reviewed: 2026-04-01
+    expires_at: null
 
 never:
   - id: sec-001
@@ -91,6 +98,10 @@ always:
   - id: qa-001
     text: "Run tests before committing"
 ```
+
+New optional rule fields (v0.2): `rationale` (why the rule exists),
+`owner` (who owns it), `status` (active/draft/deprecated),
+`last_reviewed`, `expires_at` (null = permanent).
 
 ### Journal entry types
 
@@ -102,9 +113,27 @@ Each entry has confidence (`high/medium/low`) and persistence
 
 ## API
 
+### GET /health
+
+Returns server status, version, and stats.
+
+```json
+{
+  "status": "ok",
+  "version": "0.2.0",
+  "uptime": 3600,
+  "stats": {
+    "rules_count": 12,
+    "journal_entries": 48,
+    "active_sessions": 2
+  }
+}
+```
+
 ### POST /session/start
 
-Agent announces itself, gets full context back.
+Agent announces itself, gets full context back. Now accepts an
+`objective` field and returns `handoff_inbox` with pending handoffs.
 
 ```bash
 curl http://localhost:3075/session/start \
@@ -112,7 +141,8 @@ curl http://localhost:3075/session/start \
   -d '{
     "agent": {"id": "claude", "kind": "coding"},
     "scope": {"task": "fix-auth-bug"},
-    "intent": {"summary": "Debug the JWT expiry issue"}
+    "intent": {"summary": "Debug the JWT expiry issue"},
+    "objective": "Deploy KSeF Agent v2"
   }'
 ```
 
@@ -140,13 +170,15 @@ Response:
     "services": [...],
     "important_files": [...],
     "do_not_touch": [...]
-  }
+  },
+  "handoff_inbox": [...]
 }
 ```
 
 ### POST /publish
 
 Agent records a discovery, decision, or blocker during work.
+Now accepts `parent_id` (threading) and `agent_model` (provenance).
 
 ```bash
 curl http://localhost:3075/publish \
@@ -157,13 +189,17 @@ curl http://localhost:3075/publish \
     "text": "Switched from bcrypt to argon2 for password hashing",
     "confidence": "high",
     "persistence": "project",
-    "tags": ["auth", "security"]
+    "tags": ["auth", "security"],
+    "parent_id": "evt_20260405_x1y2",
+    "agent_model": "claude-opus-4-20250514"
   }'
 ```
 
 ### POST /session/end
 
-Agent closes session with a summary for the next agent.
+Agent closes session with a summary for the next agent. Now accepts
+`rules_checked` and `rules_violated` for compliance reporting. Returns
+warnings and risky handoff flags.
 
 ```bash
 curl http://localhost:3075/session/end \
@@ -174,7 +210,43 @@ curl http://localhost:3075/session/end \
     "files_changed": ["src/auth/jwt.ts", "tests/auth.test.ts"],
     "decisions_made": ["Switch to argon2"],
     "open_threads": ["Rate limiting not yet implemented"],
-    "result": "complete"
+    "result": "complete",
+    "rules_checked": ["arch-001", "sec-001"],
+    "rules_violated": []
+  }'
+```
+
+Response: `{ "closed": true, "warnings": [...], "risky_handoff": false }`
+
+### POST /handoff
+
+Send an async message to another agent.
+
+```bash
+curl http://localhost:3075/handoff \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "sess_20260405_a1b2",
+    "to_agent": "gemini",
+    "message": "Auth module refactored, please review tests"
+  }'
+```
+
+### GET /handoff/inbox?agent=\<id\>
+
+Get pending handoffs for an agent.
+
+### POST /handoff/ack
+
+Acknowledge a handoff.
+
+```bash
+curl http://localhost:3075/handoff/ack \
+  -H "Content-Type: application/json" \
+  -d '{
+    "handoff_id": "ho_20260405_z9w8",
+    "session_id": "sess_20260405_c3d4",
+    "status": "accepted"
   }'
 ```
 
@@ -188,14 +260,13 @@ acp export    Print current context to stdout (no server needed)
 
 ## Integration modes
 
-**v0.1 (now):** HTTP. Agent calls `curl` or any HTTP client.
+**v0.1:** HTTP. Agent calls `curl` or any HTTP client.
 Start the server, point the agent at `localhost:3075`.
 
-**v0.2 (planned):** MCP bridge. ACP exposes itself as an MCP tool server.
-Agents that speak MCP get context automatically -- no curl, no glue code.
+**v0.2 (now):** Enhanced HTTP with rule governance, journal threading,
+async handoffs, and compliance reporting. Same HTTP interface, richer protocol.
 
-**v0.3 (future):** SDK and open-source launch. TypeScript and Python
-client libraries. Community-contributed rules packs.
+**v0.3 (planned):** MCP bridge, SDK clients, community rules packs.
 
 ## Positioning
 
@@ -218,8 +289,8 @@ regardless of which agent connects.
 ## Roadmap
 
 - **v0.1** -- HTTP server, YAML rules, JSONL journal, CLI (done)
-- **v0.2** -- MCP bridge, conflict detection, rules inheritance
-- **v0.3** -- Open-source launch, SDK clients, community rules packs
+- **v0.2** -- Rule governance, journal threading, async handoffs, compliance loop (done)
+- **v0.3** -- MCP bridge, conflict detection, SDK clients, community rules packs
 
 ## License
 
