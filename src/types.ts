@@ -117,6 +117,10 @@ export interface SessionEndRequest {
   files_changed?: string[];
   decisions_made?: string[];
   open_threads?: string[];
+  environment_changes?: string[];
+  rules_checked?: string[];
+  rules_violated?: string[];
+  handoffs_acknowledged?: string[];
   result: SessionResult;
 }
 
