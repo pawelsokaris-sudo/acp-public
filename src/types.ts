@@ -1,10 +1,17 @@
 // === Rules ===
 
+export type RuleStatus = 'active' | 'draft' | 'deprecated';
+
 export interface Rule {
   id: string;
   text: string;
   source?: string;
   since?: string;
+  rationale?: string;
+  owner?: string;
+  last_reviewed?: string;
+  expires_at?: string | null;
+  status?: RuleStatus;
 }
 
 export interface Rules {
