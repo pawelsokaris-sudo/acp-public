@@ -88,6 +88,34 @@ describe('Journal', () => {
     expect(blockers[0].text).toBe('DB is down');
   });
 
+  it('appends and reads entries with parent_id', async () => {
+    await journal.append({
+      id: 'evt_root', ts: '2026-04-06T10:00:00Z', session: 'sess_001',
+      agent: 'cc', type: 'discovery', text: 'Root entry',
+      persistence: 'project',
+    });
+    await journal.append({
+      id: 'evt_child', ts: '2026-04-06T10:05:00Z', session: 'sess_001',
+      agent: 'cc', type: 'decision', text: 'Follow-up',
+      parent_id: 'evt_root', persistence: 'project',
+    });
+
+    const entries = await journal.readAll();
+    expect(entries).toHaveLength(2);
+    expect(entries[1].parent_id).toBe('evt_root');
+  });
+
+  it('appends entry with agent_model', async () => {
+    await journal.append({
+      id: 'evt_model', ts: '2026-04-06T10:00:00Z', session: 'sess_001',
+      agent: 'cc', type: 'discovery', text: 'With model info',
+      agent_model: 'claude-3.5-sonnet', persistence: 'project',
+    });
+
+    const entries = await journal.readAll();
+    expect(entries[0].agent_model).toBe('claude-3.5-sonnet');
+  });
+
   it('reads empty journal without error', async () => {
     const entries = await journal.readAll();
     expect(entries).toEqual([]);

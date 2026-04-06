@@ -1,10 +1,17 @@
 // === Rules ===
 
+export type RuleStatus = 'active' | 'draft' | 'deprecated';
+
 export interface Rule {
   id: string;
   text: string;
   source?: string;
   since?: string;
+  rationale?: string;
+  owner?: string;
+  last_reviewed?: string;
+  expires_at?: string | null;
+  status?: RuleStatus;
 }
 
 export interface Rules {
@@ -39,6 +46,8 @@ export interface JournalEntry {
   confidence?: Confidence;
   persistence?: Persistence;
   tags?: string[];
+  parent_id?: string;
+  agent_model?: string;
   scope?: { task?: string; repo?: string };
   intent?: string;
   summary?: string;
@@ -72,12 +81,23 @@ export interface ActiveSession {
   started_at: string;
 }
 
+// === Objective ===
+
+export interface Objective {
+  task: string;
+  description?: string;
+  success_criteria?: string;
+  assigned_by?: string;
+  deadline?: string | null;
+}
+
 // === API Request/Response ===
 
 export interface SessionStartRequest {
-  agent: { id: string; kind?: string };
+  agent: { id: string; kind?: string; model?: string };
   scope?: { task?: string; repo?: string };
   intent?: { summary?: string };
+  objective?: Objective;
 }
 
 export interface PublishRequest {
@@ -87,6 +107,8 @@ export interface PublishRequest {
   confidence?: Confidence;
   persistence?: Persistence;
   tags?: string[];
+  parent_id?: string;
+  agent_model?: string;
 }
 
 export interface SessionEndRequest {
@@ -95,7 +117,29 @@ export interface SessionEndRequest {
   files_changed?: string[];
   decisions_made?: string[];
   open_threads?: string[];
+  environment_changes?: string[];
+  rules_checked?: string[];
+  rules_violated?: string[];
+  handoffs_acknowledged?: string[];
   result: SessionResult;
+}
+
+// === Handoff ===
+
+export interface HandoffMessage {
+  handoff_id: string;
+  from_agent: string;
+  from_session: string;
+  to_agent: string;
+  message: string;
+  priority?: 'high' | 'medium' | 'low';
+  expects_response?: boolean;
+  context?: { related_threads?: string[]; files?: string[] };
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+  acknowledged_at?: string;
+  acknowledged_by_session?: string;
+  note?: string;
 }
 
 export interface LastSessionInfo {
@@ -111,6 +155,7 @@ export interface SessionStartResponse {
     started_at: string;
     rules_hash: string;
   };
+  objective: Objective | null;
   rules: Rules;
   memory: {
     recent: JournalEntry[];

@@ -44,6 +44,52 @@ always:
     expect(rules.frozen).toEqual([]);
   });
 
+  it('parses rules with v0.2 metadata fields', () => {
+    fs.writeFileSync(path.join(tmpDir, 'rules.yaml'), `
+frozen:
+  - id: arch-001
+    text: "PostgreSQL 17, no ORM, Kysely only"
+    rationale: "ORM generated 3x slower queries in load tests"
+    source: ADR-001
+    owner: pawel
+    since: "2026-01-15"
+    last_reviewed: "2026-03-01"
+    expires_at: null
+    status: active
+never:
+  - id: sec-001
+    text: "Never commit secrets"
+    status: deprecated
+always:
+  - id: qa-001
+    text: "Run tests before commit"
+`);
+    const rules = loadRules(tmpDir);
+    expect(rules.frozen).toHaveLength(1);
+    expect(rules.frozen[0].rationale).toBe('ORM generated 3x slower queries in load tests');
+    expect(rules.frozen[0].owner).toBe('pawel');
+    expect(rules.frozen[0].last_reviewed).toBe('2026-03-01');
+    expect(rules.frozen[0].expires_at).toBeNull();
+    expect(rules.frozen[0].status).toBe('active');
+    expect(rules.never[0].status).toBe('deprecated');
+    expect(rules.always[0].status).toBeUndefined();
+  });
+
+  it('loads rules without metadata fields (backward-compatible)', () => {
+    fs.writeFileSync(path.join(tmpDir, 'rules.yaml'), `
+frozen:
+  - id: arch-001
+    text: "Old style rule"
+    source: legacy
+    since: "2025-01-01"
+`);
+    const rules = loadRules(tmpDir);
+    expect(rules.frozen[0].id).toBe('arch-001');
+    expect(rules.frozen[0].rationale).toBeUndefined();
+    expect(rules.frozen[0].owner).toBeUndefined();
+    expect(rules.frozen[0].status).toBeUndefined();
+  });
+
   it('hashRules produces consistent hash', () => {
     const rules = { frozen: [{ id: 'a', text: 'b' }], never: [], always: [] };
     const h1 = hashRules(rules);

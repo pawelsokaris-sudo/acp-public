@@ -16,114 +16,57 @@
 - CLI (init, start, export)
 - 40 tests, zero databases, zero vendor lock-in
 
-## v0.1.1 — Quick Wins
+## v0.2.0 — Governance & Multi-Agent (Done)
 
-Based on unanimous feedback from 4 AI models:
+### Rule Governance
+- New optional rule fields: `rationale`, `owner`, `status` (active/draft/deprecated), `last_reviewed`, `expires_at`
+- Expired rules auto-flagged on session start
+- Rules loaded with governance metadata, validated on parse
 
-### Publish Schema (mandatory fields)
-Currently `publish` accepts any text. Add required structure:
-```json
-{
-  "type": "discovery|decision|blocker",
-  "text": "...",
-  "confidence": "high|medium|low",
-  "persistence": "project|session|ephemeral",
-  "rules_checked": ["arch-001", "sec-002"],
-  "relates_to": "evt_previous_id"
-}
-```
-**Why:** Without structure, journal becomes noise. Every model said publish needs a contract.
-
-### Objective Field
-Add `objective` to session/start response:
-```json
-{
-  "session": {...},
-  "rules": {...},
-  "memory": {...},
-  "environment": {...},
-  "objective": {
-    "current_task": "Deploy KSeF Agent v2",
-    "priority": "high",
-    "set_by": "human",
-    "set_at": "2026-04-06"
-  }
-}
-```
-**Why:** "Agent knows the world but not the goal" (GPT). Without objective, agent has context but no direction.
-
-### Rule Metadata
-Add optional fields to rules:
-```yaml
-frozen:
-  - id: arch-001
-    text: "Agent always runs next to database (localhost)"
-    source: security-architecture
-    since: 2026-04-05
-    rationale: "Network latency + credential exposure risk"
-    expires_at: null          # null = never expires
-    last_reviewed: 2026-04-05
-    owner: "product-owner"
-```
 **Why:** "Models follow rules better when they understand intent" (Gemini). `rationale` reduces Rule Drift.
 
-## v0.2.0 — Enforcement & Scale
+### Journal Threading
+- `parent_id` field on publish — links entries into conversation threads
+- `agent_model` field — provenance tracking (which model wrote this)
 
-### Compliance Loop
-Before `/session/end`, agent MUST submit compliance report:
-```json
-{
-  "session_id": "sess_001",
-  "rules_verified": ["arch-001", "arch-006", "sec-001"],
-  "rules_violated": [],
-  "always_executed": ["qa-001", "qa-002"],
-  "always_skipped": [],
-  "reason_for_skips": null
-}
-```
-Server can reject incomplete handoffs or flag as "risky".
+**Why:** Without threading, journal is a flat stream. Threads let agents follow a line of reasoning.
 
-**Why:** All 4 models independently said: rules must be verified procedurally, not remembered. "Self-policing protocol" (Grok).
+### Async Handoffs
+- `POST /handoff` — send message to another agent
+- `GET /handoff/inbox?agent=<id>` — get pending handoffs
+- `POST /handoff/ack` — acknowledge a handoff (accepted/rejected/deferred)
+- Stored in `.acp/handoffs.jsonl`
+- Pending handoffs delivered on `session/start` as `handoff_inbox`
 
-### Conflict Detection
-When agent publishes a decision, server checks last N entries for contradictions:
-- Same topic, different conclusion → flag as `conflict`
-- Agent notified: "Your decision contradicts evt_xyz from agent B"
-- Human can resolve in panel
+**Why:** Agents need to leave notes for specific other agents, not just broadcast to journal.
 
-**Why:** 4/4 models raised this. Without it, two agents can unknowingly cancel each other's work.
+### Compliance Reporting
+- `session/end` now accepts `rules_checked` and `rules_violated`
+- Server flags sessions with no rules checked as `risky_handoff`
+- Response includes `{ closed, warnings, risky_handoff }`
 
-### Context Freshness / TTL
-Add metadata to journal entries:
-```json
-{
-  "id": "evt_001",
-  "freshness": "verified|stale|needs_refresh",
-  "verified_at": "2026-04-06T10:00:00Z",
-  "ttl_days": 30
-}
-```
-On `/session/start`, server marks entries older than TTL as `stale`.
+**Why:** All 4 models said rules must be verified procedurally, not remembered. "Self-policing protocol" (Grok).
 
-**Why:** "Memory becomes a junkyard of historically true information" (GPT). Agents need to know what's current.
+### Enhanced Health Endpoint
+- `GET /health` returns version, uptime, stats (rules count, journal entries, active sessions)
 
-### Context Compression
-New endpoint: `POST /context/summarize`
-- Generates condensed version of journal (e.g., every 10 sessions)
-- Keeps full journal for audit, serves summary for onboarding
-- Prevents token overload at scale
-
-**Why:** At 1000+ entries, raw journal exceeds model context windows. All models flagged this.
-
-### Presence / Heartbeat
-- Agents publish periodic heartbeat during session
-- Panel shows: "Claude: active (5 min ago)" / "Gemini: last seen 3 hours ago"
-- Helps human know if agent lost context
+### Objective Field
+- `session/start` accepts `objective` — agent knows the goal, not just the world
 
 ## v0.3.0 — Ecosystem
 
 ### MCP Bridge
 Expose ACP as MCP tool server. Agents that speak MCP get context automatically.
+
+### Conflict Detection
+When agent publishes a decision, server checks last N entries for contradictions.
+Agent notified if decision contradicts a previous entry. Human resolves in panel.
+
+### Context Compression
+`POST /context/summarize` — condensed journal for onboarding, full journal for audit.
+
+### Session Recovery
+`POST /session/recover` — resume an interrupted session without losing context.
 
 ### SDK Clients
 - TypeScript client (`@acp/client`)

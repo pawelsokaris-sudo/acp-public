@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { Journal } from '../core/journal.js';
+import { loadRules } from '../core/rulesLoader.js';
 import type { ActiveSession, SessionEndRequest } from '../types.js';
 
 export function sessionEndRouter(acpDir: string, sessions: Map<string, ActiveSession>) {
@@ -21,8 +22,39 @@ export function sessionEndRouter(acpDir: string, sessions: Map<string, ActiveSes
     }
 
     const journal = new Journal(acpDir);
-    const evtId = `evt_${Date.now().toString(36)}_${crypto.randomBytes(2).toString('hex')}`;
 
+    // Compliance check
+    const warnings: string[] = [];
+    let riskyHandoff = false;
+
+    if (!body.rules_checked) {
+      riskyHandoff = true;
+    } else {
+      const rules = loadRules(acpDir);
+      const frozenIds = rules.frozen.map(r => r.id);
+      for (const fid of frozenIds) {
+        if (!body.rules_checked.includes(fid)) {
+          warnings.push(`frozen rule ${fid} not listed in rules_checked`);
+        }
+      }
+    }
+
+    // Log violations to journal
+    if (body.rules_violated && body.rules_violated.length > 0) {
+      const violationEvtId = `evt_${Date.now().toString(36)}_${crypto.randomBytes(2).toString('hex')}`;
+      await journal.append({
+        id: violationEvtId,
+        ts: new Date().toISOString(),
+        session: body.session_id,
+        agent: session.agent,
+        type: 'warning',
+        text: `Rules violated: ${body.rules_violated.join(', ')}`,
+        tags: ['violation', 'compliance'],
+        persistence: 'project',
+      });
+    }
+
+    const evtId = `evt_${Date.now().toString(36)}_${crypto.randomBytes(2).toString('hex')}`;
     await journal.append({
       id: evtId,
       ts: new Date().toISOString(),
@@ -38,7 +70,12 @@ export function sessionEndRouter(acpDir: string, sessions: Map<string, ActiveSes
 
     sessions.delete(body.session_id);
 
-    res.json({ ok: true });
+    res.json({
+      closed: true,
+      session_id: body.session_id,
+      warnings,
+      risky_handoff: riskyHandoff,
+    });
   });
 
   return router;

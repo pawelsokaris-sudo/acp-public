@@ -33,6 +33,8 @@ export function publishRouter(acpDir: string, sessions: Map<string, ActiveSessio
       confidence: body.confidence,
       persistence: body.persistence,
       tags: body.tags,
+      parent_id: body.parent_id,
+      agent_model: body.agent_model,
     });
 
     res.json({ ok: true, id: evtId });
