@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { buildContext } from '../core/contextBuilder.js';
 import { Journal } from '../core/journal.js';
+import { HandoffStore } from '../core/handoffStore.js';
 import type { ActiveSession, SessionStartRequest } from '../types.js';
 
 function generateSessionId(): string {
@@ -28,6 +29,8 @@ export function sessionStartRouter(acpDir: string, sessions: Map<string, ActiveS
     const startedAt = new Date().toISOString();
 
     const ctx = await buildContext(acpDir);
+    const handoffStore = new HandoffStore(acpDir);
+    const handoffInbox = await handoffStore.getInbox(body.agent.id);
 
     const session: ActiveSession = {
       session_id: sessionId,
@@ -59,6 +62,15 @@ export function sessionStartRouter(acpDir: string, sessions: Map<string, ActiveS
       rules: ctx.rules,
       memory: ctx.memory,
       environment: ctx.environment,
+      handoff_inbox: handoffInbox.map(h => ({
+        id: h.handoff_id,
+        from_agent: h.from_agent,
+        from_session: h.from_session,
+        message: h.message,
+        priority: h.priority,
+        expects_response: h.expects_response,
+        created_at: h.created_at,
+      })),
     });
   });
 

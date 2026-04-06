@@ -2,6 +2,7 @@ import express from 'express';
 import { sessionStartRouter } from './sessionStart.js';
 import { publishRouter } from './publish.js';
 import { sessionEndRouter } from './sessionEnd.js';
+import { handoffRouter } from './handoffRoutes.js';
 import { loadTokens, authMiddleware } from './auth.js';
 import { panelAuthRouter } from './panelAuth.js';
 import { panelApiRouter } from './panelApi.js';
@@ -31,6 +32,7 @@ export function createApp(acpDir: string) {
   app.use(sessionStartRouter(acpDir, sessions));
   app.use(publishRouter(acpDir, sessions));
   app.use(sessionEndRouter(acpDir, sessions));
+  app.use(handoffRouter(acpDir, sessions));
 
   return app;
 }

@@ -124,6 +124,24 @@ export interface SessionEndRequest {
   result: SessionResult;
 }
 
+// === Handoff ===
+
+export interface HandoffMessage {
+  handoff_id: string;
+  from_agent: string;
+  from_session: string;
+  to_agent: string;
+  message: string;
+  priority?: 'high' | 'medium' | 'low';
+  expects_response?: boolean;
+  context?: { related_threads?: string[]; files?: string[] };
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+  acknowledged_at?: string;
+  acknowledged_by_session?: string;
+  note?: string;
+}
+
 export interface LastSessionInfo {
   agent: string;
   summary: string;
