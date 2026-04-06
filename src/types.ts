@@ -46,6 +46,8 @@ export interface JournalEntry {
   confidence?: Confidence;
   persistence?: Persistence;
   tags?: string[];
+  parent_id?: string;
+  agent_model?: string;
   scope?: { task?: string; repo?: string };
   intent?: string;
   summary?: string;
@@ -94,6 +96,8 @@ export interface PublishRequest {
   confidence?: Confidence;
   persistence?: Persistence;
   tags?: string[];
+  parent_id?: string;
+  agent_model?: string;
 }
 
 export interface SessionEndRequest {

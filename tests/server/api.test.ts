@@ -77,6 +77,33 @@ describe('ACP Server', () => {
     expect(res.status).toBe(404);
   });
 
+  it('POST /publish accepts parent_id and agent_model', async () => {
+    const startRes = await fetch(`http://localhost:${PORT}/session/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: { id: 'test-agent' } }),
+    });
+    const sessionId = (await startRes.json()).session.session_id;
+
+    const pubRes = await fetch(`http://localhost:${PORT}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        type: 'decision',
+        text: 'Follow-up on previous',
+        parent_id: 'evt_previous_123',
+        agent_model: 'claude-3.5-sonnet',
+        confidence: 'high',
+        persistence: 'project',
+      }),
+    });
+    expect(pubRes.status).toBe(200);
+    const data = await pubRes.json();
+    expect(data.ok).toBe(true);
+    expect(data.id).toMatch(/^evt_/);
+  });
+
   it('POST /session/end closes session', async () => {
     const startRes = await fetch(`http://localhost:${PORT}/session/start`, {
       method: 'POST',
