@@ -55,6 +55,7 @@ export function sessionStartRouter(acpDir: string, sessions: Map<string, ActiveS
         started_at: startedAt,
         rules_hash: ctx.rules_hash,
       },
+      objective: body.objective || null,
       rules: ctx.rules,
       memory: ctx.memory,
       environment: ctx.environment,

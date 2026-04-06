@@ -81,12 +81,23 @@ export interface ActiveSession {
   started_at: string;
 }
 
+// === Objective ===
+
+export interface Objective {
+  task: string;
+  description?: string;
+  success_criteria?: string;
+  assigned_by?: string;
+  deadline?: string | null;
+}
+
 // === API Request/Response ===
 
 export interface SessionStartRequest {
-  agent: { id: string; kind?: string };
+  agent: { id: string; kind?: string; model?: string };
   scope?: { task?: string; repo?: string };
   intent?: { summary?: string };
+  objective?: Objective;
 }
 
 export interface PublishRequest {
@@ -122,6 +133,7 @@ export interface SessionStartResponse {
     started_at: string;
     rules_hash: string;
   };
+  objective: Objective | null;
   rules: Rules;
   memory: {
     recent: JournalEntry[];

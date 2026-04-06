@@ -104,6 +104,38 @@ describe('ACP Server', () => {
     expect(data.id).toMatch(/^evt_/);
   });
 
+  it('POST /session/start accepts objective and echoes it back', async () => {
+    const res = await fetch(`http://localhost:${PORT}/session/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agent: { id: 'test-agent', model: 'claude-3.5-sonnet' },
+        objective: {
+          task: 'fix-auth-bug',
+          description: 'JWT tokens expire after 5min instead of 1h',
+          success_criteria: 'All auth tests pass, token TTL = 3600s',
+          assigned_by: 'pawel',
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.objective).toBeDefined();
+    expect(data.objective.task).toBe('fix-auth-bug');
+    expect(data.objective.assigned_by).toBe('pawel');
+  });
+
+  it('POST /session/start without objective returns null objective', async () => {
+    const res = await fetch(`http://localhost:${PORT}/session/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: { id: 'test-agent' } }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.objective).toBeNull();
+  });
+
   it('POST /session/end closes session', async () => {
     const startRes = await fetch(`http://localhost:${PORT}/session/start`, {
       method: 'POST',
